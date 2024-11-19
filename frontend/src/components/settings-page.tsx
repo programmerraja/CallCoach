@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { Save } from "lucide-react";
+import { Save, LogOut, User } from "lucide-react";
 import { toast } from "./ui/toast";
 
 interface Settings {
@@ -32,11 +32,18 @@ export function SettingsPage() {
     assemblyAIKey: "",
   });
 
+  const [username, setUsername] = useState<string>("");
+
   // Load settings on component mount
   useEffect(() => {
     const savedSettings = localStorage.getItem("callAnalysisSettings");
     if (savedSettings) {
       setSettings(JSON.parse(savedSettings));
+    }
+
+    const user = localStorage.getItem("username");
+    if (user) {
+      setUsername(user);
     }
   }, []);
 
@@ -76,8 +83,39 @@ export function SettingsPage() {
     });
   };
 
+  const handleLogout = () => {
+    // Clear all stored data
+    localStorage.removeItem("callAnalysisSettings");
+    localStorage.removeItem("authToken"); // If you're using auth token
+    
+    // Redirect to login page
+    window.location.href = "/login";
+  };
+
   return (
     <div className="p-4 md:p-6 space-y-6">
+      <Card className="p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="h-12 w-12 rounded-full bg-cyan-100 flex items-center justify-center">
+              <User className="h-6 w-6 text-cyan-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">{username || "User"}</h2>
+              <p className="text-sm text-gray-500">Logged in user</p>
+            </div>
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleLogout}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Logout
+          </Button>
+        </div>
+      </Card>
+
       <Card className="p-6">
         <h2 className="text-lg font-semibold mb-4">Model Configuration</h2>
         
@@ -189,12 +227,12 @@ export function SettingsPage() {
           )}
         </div>
 
-        <Button
-          className="w-full mt-6 bg-cyan-500 hover:bg-cyan-600"
-          onClick={handleSave}
-        >
-          <Save className="w-4 h-4 mr-2" />
-          Save Settings
+          <Button
+            className="w-full mt-6 bg-cyan-500 hover:bg-cyan-600"
+            onClick={handleSave}
+          >
+            <Save className="w-4 h-4 mr-2" />
+            Save Settings
         </Button>
       </Card>
     </div>
