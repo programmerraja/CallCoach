@@ -2,33 +2,24 @@ const mongoose = require('mongoose');
 
 const callMetricSchema = new mongoose.Schema({
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  duration: {
-    type: Number,
-    required: true
-  },
-  startTime: {
-    type: Date,
-    required: true
-  },
-  endTime: {
-    type: Date,
-    required: true
-  },
-  callType: {
     type: String,
-    enum: ['audio', 'video'],
+    required: true,
+    index: true
+  },
+  summary: {
+    type: String,
     required: true
   },
-  participants: [{
-    type: String
-  }],
-  quality: {
+  analysis: {
+    type: Object,
+    required: true
+  },
+  transcript:{
+    type:String,
+    required:true
+  },
+  audioUrl: {
     type: String,
-    enum: ['excellent', 'good', 'fair', 'poor'],
     required: true
   },
   createdAt: {

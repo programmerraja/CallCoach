@@ -1,32 +1,45 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const passport = require('passport');
-const CallMetric = require('../models/CallMetric');
+const CallMetric = require("../models/CallMetric");
 
-const authenticate = passport.authenticate('jwt', { session: false });
-
-router.post('/', authenticate, async (req, res) => {
+router.post("/", async (req, res) => {
   try {
-    const metric = new CallMetric({
-      userId: req.user._id,
-      ...req.body
+    const userId = req.user.id;
+    const { summary, analysis, audioUrl, transcript } = req.body;
+
+    const callMetric = new CallMetric({
+      userId,
+      summary,
+      analysis,
+      transcript,
+      audioUrl,
+      createdAt: new Date(),
     });
 
-    await metric.save();
-    res.status(201).json(metric);
+    await callMetric.save();
+
+    res.status(201).json(callMetric);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error("Error storing call metrics:", error);
+    res.status(500).json({ error: "Failed to store call metrics" });
   }
 });
 
-router.get('/', authenticate, async (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const metrics = await CallMetric.find({ userId: req.user._id })
-      .sort({ createdAt: -1 });
+    const query = { userId: req.user.id };
+    console.log(req.query);
+    console.log(req.params);
+    if (req.query && req.query.id) {
+      query._id = req.query.id;
+    }
+
+    const metrics = await CallMetric.find(query).sort({ createdAt: -1 });
     res.json(metrics);
   } catch (error) {
-    res.status(500).json({ message: 'Server error' });
+    console.error("Error fetching call metrics:", error);
+    res.status(500).json({ error: "Failed to fetch call metrics" });
   }
 });
 
-module.exports = router; 
+module.exports = router;
