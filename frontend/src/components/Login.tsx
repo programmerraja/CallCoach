@@ -22,7 +22,7 @@ const Login = () => {
     try {
       await authService.login(formData);
       navigate('/'); 
-      localStorage.setItem("username", user.username);
+      // localStorage.setItem("username", user.username);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed');
     }

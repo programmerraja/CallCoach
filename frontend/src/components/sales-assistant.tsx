@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import {
@@ -9,11 +9,18 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { Mic, PhoneCall, BarChart2, User, Clock, ThumbsUp } from "lucide-react";
+import { Mic, PhoneCall, BarChart2, User, Clock, ThumbsUp, Loader } from "lucide-react";
+import { uploadAudio, transcribeAudio, getPersonaResponse } from "../services/api";
+import { PERSONA_PROMPT } from "../services/prompt";
 
 export default function ColdCallPractice() {
   const [selectedPersona, setSelectedPersona] = useState("");
   const [isCallActive, setIsCallActive] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [conversation, setConversation] = useState<string[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const startCall = () => {
     if (selectedPersona) {
@@ -23,6 +30,44 @@ export default function ColdCallPractice() {
 
   const endCall = () => {
     setIsCallActive(false);
+    setRecording(false);
+  };
+
+  const startRecording = () => {
+    navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunksRef.current.push(event.data);
+      };
+
+      mediaRecorder.start();
+      setRecording(true);
+    });
+  };
+
+  const stopRecording = async () => {
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.onstop = async () => {
+        setLoading(true);
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" });
+        // const audioUrl = await uploadAudio(audioBlob as File);
+
+        const transcript = await transcribeAudio(audioBlob as unknown as File);
+
+        const newConversation = [...conversation, `user: ${transcript}`]
+        setConversation(newConversation);
+        const prompt = PERSONA_PROMPT(selectedPersona, newConversation)
+        const response = await getPersonaResponse(prompt)
+
+        setConversation((prev) => [...prev, `Prospect: ${response}`])
+        setLoading(false);
+      };
+      setRecording(false);
+    }
   };
 
   return (
@@ -50,7 +95,7 @@ export default function ColdCallPractice() {
                     <CardTitle className="text-lg">Select Persona</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <Select onValueChange={setSelectedPersona}>
+                    <Select onValueChange={setSelectedPersona} disabled={isCallActive}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose a persona" />
                       </SelectTrigger>
@@ -61,6 +106,8 @@ export default function ColdCallPractice() {
                         <SelectItem value="curious">Curious</SelectItem>
                         <SelectItem value="skeptical">Skeptical</SelectItem>
                         <SelectItem value="busy">Busy</SelectItem>
+                        <SelectItem value="decision-maker">Decision Maker</SelectItem>
+                        <SelectItem value="overwhelmed">Overwhelmed</SelectItem>
                       </SelectContent>
                     </Select>
                   </CardContent>
@@ -95,19 +142,31 @@ export default function ColdCallPractice() {
                 <CardContent className="h-64 bg-gray-50 rounded-md p-4 overflow-y-auto">
                   {isCallActive ? (
                     <div className="space-y-2">
-                      <p className="font-semibold">
-                        AI: Hello, this is John from XYZ Corp. How may I help
-                        you today?
-                      </p>
-                      <p className="text-gray-600">
-                        You: Hello John, I'm calling to discuss our new software
-                        solution that can help streamline your business
-                        processes.
-                      </p>
-                      <p className="font-semibold">
-                        AI: I see. Can you tell me more about how this software
-                        specifically applies to our industry?
-                      </p>
+                      {conversation.map((line, index) => (
+                        <p key={index} className={line.startsWith("AI:") ? "font-semibold" : "text-gray-600"}>
+                          {line}
+                        </p>
+                      ))}
+                      <div className="flex items-center justify-center mt-4">
+                        <Button
+                          onMouseDown={startRecording}
+                          onMouseUp={stopRecording}
+                          className="flex items-center space-x-2"
+                          disabled={loading}
+                        >
+                          {loading ? (
+                            <>
+                              <Loader className="h-4 w-4 animate-spin" />
+                              <span>Processing...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mic className="h-4 w-4" />
+                              <span>{recording ? "Recording..." : "Hold to Record"}</span>
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </div>
                   ) : (
                     <p className="text-center text-gray-500">

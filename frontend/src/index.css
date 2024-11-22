@@ -66,3 +66,15 @@ button:focus-visible {
     background-color: #f9f9f9;
   }
 }
+
+.prose {
+  @apply text-gray-600;
+}
+
+.prose p {
+  @apply mb-4;
+}
+
+.recharts-tooltip {
+  @apply bg-white p-2 border border-gray-200 rounded shadow-lg;
+}

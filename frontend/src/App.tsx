@@ -26,6 +26,7 @@ function App() {
         >
           <Route index element={<HomePage />} />
           <Route path="metrics" element={<CallMetrics />} />
+          <Route path="metrics/:id" element={<CallMetrics />} />
           <Route path="assistant" element={<ColdCallPractice />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
@@ -37,6 +38,7 @@ function App() {
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Router>
+    
   );
 }
 

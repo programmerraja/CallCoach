@@ -3,27 +3,40 @@
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import {
-  Clock,
-  Users,
   Heart,
-  KeyRound,
-  Mic,
   Cloud,
-  Download,
   Loader,
-  BarChart2,
-  List,
   Smile,
   Meh,
   Frown,
   Timer,
-  PieChart,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
 } from "lucide-react";
-import { useState } from "react";
-import { uploadAudio, transcribeAudio, analyzeTranscript, summarizeTranscript } from "../services/api";
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
+import {
+  uploadAudio,
+  transcribeAudio,
+  fetchCallMetricById,
+  storeCallAnalytics,
+  analyzeTranscript,
+  summarizeTranscript,
+} from "../services/api";
 import { toast } from "./ui/toast";
+import ReactMarkdown from "react-markdown";
+import {
+  PieChart as RePieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 export interface AnalysisResults {
   talk_to_listen_ratio: {
@@ -43,23 +56,56 @@ export interface AnalysisResults {
     sales_rep: string[];
     customer: string[];
   };
+  actionable_insights: string;
 }
 
 export function CallMetrics() {
+  const { id } = useParams();
   const [audioFile, setAudioFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
-  const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null);
-  const [expandedMetrics, setExpandedMetrics] = useState<{ [key: string]: boolean }>({});
+  const [analysisResults, setAnalysisResults] =
+    useState<Partial<AnalysisResults> | null>(null);
+  const [transcript, setTranscript] = useState<string | null>(null);
+  const [expandedMetrics, setExpandedMetrics] = useState<{
+    [key: string]: boolean;
+  }>({});
+
+  useEffect(() => {
+    if (!id) return;
+
+    fetchCallMetricById(id)
+      .then((data) => {
+        if (data) {
+          setAnalysisResults(data[0].analysis);
+          setSummary(data[0].summary);
+        } else {
+          toast({
+            title: "Error",
+            description: "Call metric not found",
+            variant: "destructive",
+          });
+        }
+      })
+      .catch((error) => {
+        toast({
+          title: "Error fetching call metric",
+          description: error.message,
+          variant: "destructive",
+        });
+      });
+  }, [id]);
 
   const checkSettings = () => {
     const settings = localStorage.getItem("callAnalysisSettings");
     if (!settings) return false;
-    
+
     const parsedSettings = JSON.parse(settings);
-    if (parsedSettings.modelProvider === "openai" && !parsedSettings.apiKey) return false;
-    if (parsedSettings.modelProvider === "ollama" && !parsedSettings.ollamaHost) return false;
-    
+    if (parsedSettings.modelProvider === "openai" && !parsedSettings.apiKey)
+      return false;
+    if (parsedSettings.modelProvider === "ollama" && !parsedSettings.ollamaHost)
+      return false;
+
     return parsedSettings;
   };
 
@@ -77,23 +123,23 @@ export function CallMetrics() {
     setIsProcessing(true);
     try {
       const audioUrl = await uploadAudio(file);
-
       const transcript = await transcribeAudio(audioUrl);
-      
-      console.log(transcript,"transcript");
 
       const [analysis, summary] = await Promise.all([
         analyzeTranscript(transcript, settings),
-        Promise.resolve("summary"),
-        // summarizeTranscript(transcript, settings)
+        summarizeTranscript(transcript, settings),
       ]);
-
       setAnalysisResults(analysis);
       setSummary(summary);
+      console.log(transcript, "transcript");
+      setTranscript(transcript);
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to process audio file",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to process audio file",
         variant: "destructive",
       });
     } finally {
@@ -109,27 +155,122 @@ export function CallMetrics() {
     }
   };
 
-  const toggleExpand = (metric: string) => {
+  const handleSaveMetrics = async () => {
+    if (!analysisResults) return;
+
+    try {
+      await storeCallAnalytics({
+        summary,
+        analysis: analysisResults,
+        transcript,
+        audioUrl: "",
+      });
+      toast({
+        title: "Success",
+        description: "Metrics saved successfully",
+      });
+      // Reset state to allow user to upload another file
+      setAudioFile(null);
+      setAnalysisResults(null);
+      setSummary(null);
+      setTranscript(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save metrics",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleMetric = (metricName: string) => {
     setExpandedMetrics((prev) => ({
       ...prev,
-      [metric]: !prev[metric],
+      [metricName]: !prev[metricName],
     }));
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 md:bg-white">
-      <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <header className="flex items-center justify-between p-4 md:p-6">
-          <div className="flex items-center gap-3">
-            <Cloud className="w-6 h-6" />
-            <h1 className="text-xl font-semibold">Upload Call Audio</h1>
-          </div>
-        </header>
+  const renderSentimentEmoji = (sentiment: string) => {
+    switch (sentiment?.toLowerCase()) {
+      case "positive":
+        return <Smile className="w-6 h-6 text-green-500" />;
+      case "neutral":
+        return <Meh className="w-6 h-6 text-yellow-500" />;
+      case "negative":
+        return <Frown className="w-6 h-6 text-red-500" />;
+      default:
+        return null;
+    }
+  };
 
-        <div className="p-4 md:p-6 space-y-6">
-          {/* Upload Section */}
-          <div className="p-6 bg-white">
+  const renderMetricCard = (
+    title: string,
+    value: React.ReactNode,
+    icon: React.ReactNode,
+    description?: string
+  ) => (
+    <Card className="p-4 flex flex-col space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-gray-500">{title}</h3>
+        {icon}
+      </div>
+      <div className="text-2xl font-bold">{value}</div>
+      {description && <p className="text-sm text-gray-500">{description}</p>}
+    </Card>
+  );
+
+  const renderTalkTimeChart = () => {
+    if (!analysisResults?.talk_to_listen_ratio) return null;
+
+    const data = [
+      {
+        name: "Sales Rep",
+        value: analysisResults.talk_to_listen_ratio.sales_rep,
+      },
+      {
+        name: "Customer",
+        value: analysisResults.talk_to_listen_ratio.customer,
+      },
+    ];
+
+    const COLORS = ["#0088FE", "#00C49F"];
+
+    return (
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <RePieChart>
+            <Pie
+              data={data}
+              innerRadius={60}
+              outerRadius={80}
+              paddingAngle={5}
+              dataKey="value"
+            >
+              {data.map((entry, index) => (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={COLORS[index % COLORS.length]}
+                />
+              ))}
+            </Pie>
+            <Tooltip />
+          </RePieChart>
+        </ResponsiveContainer>
+      </div>
+    );
+  };
+
+  return (
+    <div className="container mx-auto p-4 space-y-6">
+      {!id && !analysisResults && (
+        <div className="flex justify-center mb-8">
+          <div className="p-6 bg-gray-100 rounded-lg shadow-inner">
+            <header className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <Cloud className="w-6 h-6" />
+                <h1 className="text-xl font-semibold">Upload Call Audio</h1>
+              </div>
+            </header>
             <p className="text-sm text-gray-600 mb-6">
               Please upload your call recording file. Accepted formats include
               .mp3, .wav, and .aac. Ensure the file is clear and of good quality
@@ -141,7 +282,7 @@ export function CallMetrics() {
                   type="file"
                   accept=".mp3,.wav,.aac"
                   onChange={handleFileChange}
-                  className="mb-4"
+                  className="mb-4 cursor-pointer"
                 />
               )}
               {audioFile && (
@@ -153,7 +294,8 @@ export function CallMetrics() {
                     <div className="flex items-center gap-2">
                       <Loader className="animate-spin w-5 h-5 text-gray-500" />
                       <p className="text-sm text-gray-500">
-                        Processing your call recording, this may take a few moments.
+                        Processing your call recording, this may take a few
+                        moments.
                       </p>
                     </div>
                   )}
@@ -161,161 +303,85 @@ export function CallMetrics() {
               )}
             </div>
           </div>
-
-        {/* Summary */}
-        <div>
-            <h2 className="text-xl font-semibold mb-4">Call Summary</h2>
-            <div className="p-6 bg-white">
-              <p className="text-sm text-gray-600 mb-6">
-                {summary}
-              </p>
-            </div>
-          </div>
-
-
-          {/* Metrics Dashboard */}
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Metrics</h2>
-            <div className="space-y-3">
-              <MetricItem 
-                icon={<BarChart2 />} 
-                title="Talk vs. Listen Ratio" 
-                value={`Sales Rep: ${analysisResults?.talk_to_listen_ratio?.sales_rep}% | Customer: ${analysisResults?.talk_to_listen_ratio?.customer}%`}
-                loading={isProcessing}
-              />
-              <MetricItem 
-                icon={<List />} 
-                title="Total Objections" 
-                value={analysisResults?.objection_count?.toString()}
-                loading={isProcessing}
-              />
-              <MetricItem 
-                icon={<Users />} 
-                title="Competitor Mentions" 
-                value={Object.entries(analysisResults?.competitor_mentions || {}).map(([competitor, count]) => `${competitor} - ${count} mention(s)`).join(", ")}
-                loading={isProcessing}
-              />
-              <MetricItem 
-                icon={<Smile />} 
-                title="Overall Sentiment" 
-                value={analysisResults?.sentiment?.overall_sentiment}
-                loading={isProcessing}
-              />
-              <MetricItem 
-                icon={<Heart />} 
-                title="Sales Rep Sentiment" 
-                value={analysisResults?.sentiment?.sales_rep_sentiment}
-                loading={isProcessing}
-              />
-              <MetricItem 
-                icon={<Meh />} 
-                title="Customer Sentiment" 
-                value={analysisResults?.sentiment?.customer_sentiment}
-                loading={isProcessing}
-              />
-              <MetricItem 
-                icon={<Mic />} 
-                title="Filler Words Used" 
-                value={analysisResults?.filler_words?.length?.toString()}
-                loading={isProcessing}
-                expandableContent={analysisResults?.filler_words?.join(", ")}
-                expanded={expandedMetrics["filler_words"]}
-                onToggleExpand={() => toggleExpand("filler_words")}
-              />
-              <MetricItem 
-                icon={<Timer />} 
-                title="Longest Monologue" 
-                value={`${analysisResults?.longest_monologue_duration} seconds`}
-                loading={isProcessing}
-              />
-              <MetricItem 
-                icon={<PieChart />} 
-                title="Questions Asked" 
-                value={`Sales Rep: ${analysisResults?.questions_asked?.sales_rep.length} | Customer: ${analysisResults?.questions_asked?.customer.length}`}
-                loading={isProcessing}
-                expandableContent={`Sales Rep: ${analysisResults?.questions_asked?.sales_rep.join(", ")} | Customer: ${analysisResults?.questions_asked?.customer.join(", ")}`}
-                expanded={expandedMetrics["questions_asked"]}
-                onToggleExpand={() => toggleExpand("questions_asked")}
-              />
-            </div>
-          </div>
-
-          {/* Actionable Insights */}
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Actionable Insights</h2>
-            <div className="p-6 bg-white">
-              <p className="text-sm text-gray-600 mb-6">
-                {`The sales rep maintained a positive tone throughout the call, but the customer expressed a neutral sentiment. Consider reducing filler words to improve communication clarity. Customer mentioned ${Object.keys(analysisResults?.competitor_mentions || {}).join(", ")} once—this could indicate potential concerns.`}
-              </p>
-            </div>
-          </div>
-
-          
-          {/* Export Options */}
-          <div>
-            <div className="flex justify-center items-center">
-              <Button className="w-full bg-cyan-500 hover:bg-cyan-600">
-                <Download className="w-4 h-4 mr-2" />
-                Download
-              </Button>
-            </div>
-          </div>
         </div>
-      </div>
-    </div>
-  );
-}
+      )}
 
-function OverviewItem({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between p-4 bg-white rounded-lg shadow-sm">
-      <div>
-        <span className="font-medium">{title}</span>
-        <p className="text-sm text-gray-500">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function MetricItem({ 
-  icon, 
-  title, 
-  value, 
-  loading, 
-  expandableContent, 
-  expanded, 
-  onToggleExpand 
-}: { 
-  icon: React.ReactNode; 
-  title: string;
-  value?: string;
-  loading?: boolean;
-  expandableContent?: string;
-  expanded?: boolean;
-  onToggleExpand?: () => void;
-}) {
-  return (
-    <div className="flex flex-col p-4 bg-white rounded-lg shadow-sm">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
-            {icon}
-          </div>
-          <div>
-            <span className="font-medium">{title}</span>
-            {loading && <p className="text-sm text-gray-500">Analyzing...</p>}
-            {value && <p className="text-sm text-gray-500">{value}</p>}
-          </div>
+      {/* Overview Cards */}
+      {analysisResults && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {renderMetricCard(
+            "Objection Count",
+            analysisResults.objection_count || 0,
+            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+          )}
+          {renderMetricCard(
+            "Longest Monologue",
+            `${analysisResults.longest_monologue_duration || 0}s`,
+            <Timer className="h-5 w-5 text-blue-500" />
+          )}
+          {renderMetricCard(
+            "Overall Sentiment",
+            renderSentimentEmoji(
+              analysisResults.sentiment?.overall_sentiment || ""
+            ),
+            <Heart className="h-5 w-5 text-pink-500" />
+          )}
         </div>
-        {expandableContent && (
-          <button onClick={onToggleExpand} className="text-gray-500">
-            {expanded ? <ChevronUp /> : <ChevronDown />}
-          </button>
-        )}
-      </div>
-      {expanded && expandableContent && (
-        <div className="mt-2 text-sm text-gray-500">
-          {expandableContent}
+      )}
+
+      {/* Talk Time Distribution */}
+      {analysisResults && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Talk Time Distribution</h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => toggleMetric("talkTime")}
+            >
+              {expandedMetrics["talkTime"] ? <ChevronUp /> : <ChevronDown />}
+            </Button>
+          </div>
+          {expandedMetrics["talkTime"] && renderTalkTimeChart()}
+        </Card>
+      )}
+
+      {/* Call Summary */}
+      {summary && (
+        <Card className="p-4">
+          <h2 className="text-lg font-semibold mb-4">Call Summary</h2>
+          <ReactMarkdown className="prose max-w-none">{summary}</ReactMarkdown>
+        </Card>
+      )}
+
+      {/* Transcript */}
+      {transcript && (
+        <Card className="p-4">
+          <h2 className="text-lg font-semibold mb-4">Transcript</h2>
+
+          {transcript.split("\n").map((t) => (
+            <p className="mb-4">{t}</p>
+          ))}
+        </Card>
+      )}
+
+      {/* Save Metrics Button */}
+      {analysisResults && !id && (
+        <div className="flex justify-end space-x-4">
+          <Button variant="secondary" onClick={handleSaveMetrics}>
+            Save Metrics
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setAudioFile(null);
+              setAnalysisResults(null);
+              setSummary(null);
+              setTranscript(null);
+            }}
+          >
+            Discard and Upload Another
+          </Button>
         </div>
       )}
     </div>
