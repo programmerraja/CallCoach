@@ -10,7 +10,7 @@ export default function NotFound() {
       <p className="text-lg mb-8">
         Oops! The page you are looking for does not exist.
       </p>
-      <Button size="lg" variant="outline" className="flex items-center gap-2">
+      <Button size="lg" variant="secondary" className="flex items-center gap-2">
         <Link to="/dashboard" className="flex items-center gap-2">
           <ArrowLeft className="h-5 w-5" />
           Go to Home
