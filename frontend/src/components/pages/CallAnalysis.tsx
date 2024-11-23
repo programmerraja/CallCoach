@@ -104,7 +104,7 @@ export function CallMetrics({
         "Configuration Required",
         "Please configure your AI settings first"
       );
-      navigate("/settings");
+      navigate("/dashboard/settings");
       return;
     }
 
@@ -117,7 +117,7 @@ export function CallMetrics({
         "Configuration Required",
         "Please configure your AI settings first"
       );
-      navigate("/settings");
+      navigate("/dashboard/settings");
       return;
     }
 
