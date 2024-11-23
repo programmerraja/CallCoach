@@ -20,7 +20,6 @@ const callMetricSchema = new mongoose.Schema({
   },
   audioUrl: {
     type: String,
-    required: true
   },
   createdAt: {
     type: Date,

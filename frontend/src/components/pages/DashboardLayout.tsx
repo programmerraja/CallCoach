@@ -10,4 +10,4 @@ export function DashboardLayout() {
       </main>
     </div>
   );
-} 
+}

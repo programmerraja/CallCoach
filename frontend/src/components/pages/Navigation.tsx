@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Button } from "./ui/button";
+import { Button } from "../ui/button";
 import { Home, Settings, ChartLine, Menu, User } from "lucide-react";
 import { useState } from "react";
 
@@ -43,8 +43,8 @@ export function Navigation() {
         border-r
       `}>
         <NavButton to="/dashboard" icon={<Home className="h-5 w-5" />} label="Home" />
-        <NavButton to="/dashboard/metrics" icon={<ChartLine className="h-5 w-5" />} label="Metrics" />
-        <NavButton to="/dashboard/assistant" icon={<User className="h-5 w-5" />} label="Sales Assistant" />
+        <NavButton to="/dashboard/analysis" icon={<ChartLine className="h-5 w-5" />} label="Analysis" />
+        <NavButton to="/dashboard/cold-call-Practice" icon={<User className="h-5 w-5" />} label="Cold Call Practice" />
         <NavButton to="/dashboard/settings" icon={<Settings className="h-5 w-5" />} label="Settings" />
       </nav>
     </>

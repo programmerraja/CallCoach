@@ -1,223 +1,329 @@
-import { AssemblyAI } from 'assemblyai'
-import { PROMPT, METRICS_PROMPT, SUMMARY_PROMPT } from './prompt'
+import { AssemblyAI } from "assemblyai";
+import {
+  METRICS_PROMPT,
+  SUMMARY_PROMPT,
+} from "./prompt";
+import { CallMetric } from "../components/pages/homePage";
 
-export async function uploadAudio(file: File) {
-  
-  const settings = JSON.parse(localStorage.getItem("callAnalysisSettings") || "{}");
-  if (!settings.assemblyAIKey) {
-    throw new Error("Assembly AI key not configured");
-  }
-
-  const formData = new FormData();
-  formData.append('audio', file);
-  const client = new AssemblyAI({
-    apiKey: settings.assemblyAIKey
-  })
-  const response = await client.files.upload(formData)
-  return response;
+export interface CallAnalytics {
+  summary: string;
+  analysis: Partial<AnalysisResults>;
+  transcript: string;
+  audioUrl: string;
 }
 
-export async function transcribeAudio(audioUrl: string) {
-  const settings = JSON.parse(localStorage.getItem("callAnalysisSettings") || "{}");
+export interface AnalysisResults {
+  talk_to_listen_ratio: {
+    sales_rep: number;
+    customer: number;
+  };
+  objection_count: number;
+  competitor_mentions: { [key: string]: number };
+  sentiment: {
+    overall_sentiment: string;
+    sales_rep_sentiment: string;
+    customer_sentiment: string;
+  };
+  filler_words: string[];
+  longest_monologue_duration: number;
+  questions_asked: {
+    sales_rep: string[];
+    customer: string[];
+  };
+  actionable_insights: string;
+}
+// @ts-ignore
+const SERVER_URL = `${window.location.hostname}/api` || "http://localhost:5000/api";
+
+function getSettings() {
+  return JSON.parse(localStorage.getItem("callAnalysisSettings") || "{}");
+}
+
+function checkAssemblyAIKey(settings: any) {
   if (!settings.assemblyAIKey) {
     throw new Error("Assembly AI key not configured");
   }
+}
 
-  // Start transcription
-  const client = new AssemblyAI({
-    apiKey: settings.assemblyAIKey
-  })
-  const response = await client.transcripts.transcribe({
-    audio_url: audioUrl,
-  });
+function getClient(settings: any) {
+  return new AssemblyAI({ apiKey: settings.assemblyAIKey });
+}
 
+function handleTokenExpiration() {
+  const token = localStorage.getItem("token");
+  if (!token || isTokenExpired(token)) {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+    throw new Error("JWT token not found or expired");
+  }
+  return token;
+}
+
+export async function uploadAudio(file: File) {
+  const settings = getSettings();
+  checkAssemblyAIKey(settings);
+
+  const formData = new FormData();
+  formData.append("audio", file);
+  const client = getClient(settings);
+  return await client.files.upload(formData);
+}
+
+export async function transcribeAudio(audioUrl: string | File) {
+  const settings = getSettings();
+  checkAssemblyAIKey(settings);
+
+  const client = getClient(settings);
+  const config: any = { speaker_labels: true };
+
+  if (typeof audioUrl === "string") {
+    config.audio_url = audioUrl;
+  } else {
+    config.audio = audioUrl;
+  }
+
+  const response = await client.transcripts.transcribe(config);
   const { id } = response;
 
   while (true) {
     const pollResponse = await client.transcripts.get(id);
-    
-    if (pollResponse.status === 'completed') {
-      return pollResponse.text;
-    }
-    
-    if (pollResponse.status === 'error') {
-      throw new Error('Transcription failed');
+
+    if (pollResponse.status === "completed") {
+      return pollResponse.utterances
+        .map((utterance) => `${utterance.speaker}: ${utterance.text}`)
+        .join("\n");
     }
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    if (pollResponse.status === "error") {
+      throw new Error("Transcription failed");
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 }
 
-export async function analyzeTranscript(transcript: string, settings: any) {
-  if (settings.modelProvider === 'openai') {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${settings.apiKey}`,
-        'Content-Type': 'application/json',
+export async function analyzeTranscript(
+  transcript: string,
+): Promise<AnalysisResults> {
+  // return Promise.resolve({
+  //   talk_to_listen_ratio: {
+  //     sales_rep: 0.5,
+  //     customer: 0.5,
+  //   },
+  //   objection_count: 0,
+  //   competitor_mentions: {},
+  //   sentiment: {
+  //     overall_sentiment: "neutral",
+  //     sales_rep_sentiment: "neutral",
+  //     customer_sentiment: "neutral",
+  //   },
+  //   filler_words: [],
+  //   longest_monologue_duration: 0,
+  //   questions_asked: {
+  //     sales_rep: [],
+  //     customer: [],
+  //   },
+  //   actionable_insights: "",
+  // });
+  const settings = getSettings();
+  const functionParameters = {
+    type: "object",
+    properties: {
+      duration: { type: "string" },
+      speakers: { type: "array", items: { type: "string" } },
+      sentiment: { type: "string" },
+      keywords: { type: "array", items: { type: "string" } },
+      clarity: { type: "string" },
+      talkToListenRatio: {
+        type: "object",
+        properties: {
+          salesRep: { type: "number" },
+          customer: { type: "number" },
+        },
       },
-      body: JSON.stringify({
-        model: settings.modelName,
-        messages: [{
-          role: 'user',
-          content: `${METRICS_PROMPT}
-            Transcript: ${transcript}`
-        }]
-      })
-    });
+      objectionCount: { type: "number" },
+      competitorMentions: {
+        type: "object",
+        additionalProperties: { type: "number" },
+      },
+      overallSentiment: { type: "string" },
+      salesRepSentiment: { type: "string" },
+      customerSentiment: { type: "string" },
+      fillerWordCount: { type: "number" },
+      longestMonologueDuration: { type: "number" },
+      questionsAsked: {
+        type: "object",
+        properties: {
+          salesRep: { type: "number" },
+          customer: { type: "number" },
+        },
+      },
+    },
+    required: ["duration", "speakers", "sentiment", "keywords", "clarity"],
+  };
 
-    const data = await response.json();
-    // Parse the response and extract structured data
-    return {
-      duration: "15 minutes", // Parse from response
-      speakers: ["Sales Rep", "Customer"],
-      sentiment: "Positive",
-      keywords: ["pricing", "features", "follow-up"],
-      clarity: "Good",
-    };
-  } else if (settings.modelProvider === 'ollama') {
-    const response = await fetch(`${settings.ollamaHost}/api/generate`, {
-      method: 'POST',
+  const response = await fetch(
+    settings.modelProvider === "openai"
+      ? "https://api.openai.com/v1/chat/completions"
+      : `${settings.ollamaHost}/api/generate`,
+    {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        Authorization: settings.modelProvider === "openai" ? `Bearer ${settings.apiKey}` : undefined,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: settings.modelName,
-        prompt: `${METRICS_PROMPT}
-            Transcript: ${transcript}`,
+        model:settings.modelName ,
+        prompt: `${METRICS_PROMPT}\nTranscript: ${transcript}`,
+        stream: false,
+        functions: settings.modelProvider === "openai" ? [{ name: "generateStructuredResponse", parameters: functionParameters }] : undefined,
       }),
-    });
+    }
+  );
 
-    const data = await response.json();
-    // Parse the response and return structured data
-    return {
-      duration: "15 minutes",
-      speakers: ["Sales Rep", "Customer"],
-      sentiment: "Positive",
-      keywords: ["pricing", "features", "follow-up"],
-      clarity: "Good",
-    };
+  const data = await response.json();
+  return settings.modelProvider === "openai"
+    ? data.choices[0].message.function_call.arguments
+    // ollama model returns a json string
+    : JSON.parse(data.response.replace("```json", "").replace("```", "").replace(/\n/g, ""));
+}
+
+export async function summarizeTranscript(transcript: string) {
+  // return Promise.resolve("This is a summary of the transcript");
+  const settings = getSettings();
+  const response = await fetch(
+    settings.modelProvider === "openai"
+      ? "https://api.openai.com/v1/engines/davinci-codex/completions"
+      : `${settings.ollamaHost}/api/generate`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: settings.modelProvider === "openai" ? `Bearer ${settings.apiKey}` : undefined,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model:settings.modelName ,
+        prompt: `${SUMMARY_PROMPT}\nTranscript: ${transcript}`,
+        max_tokens: settings.modelProvider === "openai" ? 150 : undefined,
+        temperature: settings.modelProvider === "openai" ? 0.7 : undefined,
+        stream: false,
+      }),
+    }
+  );
+
+  const data = await response.json();
+  return settings.modelProvider === "openai" ? data.choices[0].text.trim() : data.response;
+}
+
+export async function getPersonaResponse(prompt: string): Promise<string> {
+  const settings = getSettings();
+
+  const response = await fetch(
+    settings.modelProvider === "openai"
+      ? "https://api.openai.com/v1/chat/completions"
+      : `${settings.ollamaHost}/api/generate`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: settings.modelProvider === "openai" ? `Bearer ${settings.apiKey}` : undefined,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model:settings.modelName ,
+        prompt,
+        messages: settings.modelProvider === "openai" ? [{ role: "user", content: prompt }] : undefined,
+        stream: false,
+      }),
+    }
+  );
+
+  const data = await response.json();
+  return settings.modelProvider === "openai" ? data.choices[0].message.function_call.arguments : data.response;
+}
+
+function isTokenExpired(token: string): boolean {
+  const payload = JSON.parse(atob(token.split('.')[1]));
+  return payload.exp * 1000 < Date.now();
+}
+
+export async function storeCallAnalytics(data: CallAnalytics) {
+  const { summary, analysis, audioUrl, transcript } = data;
+  const token = handleTokenExpiration();
+
+  const response = await fetch(`${SERVER_URL}/metrics`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ summary, analysis, transcript, audioUrl }),
+  });
+
+  if (response.status === 401) {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+    throw new Error('Unauthorized: Token has been cleared and user logged out');
   }
 
-  throw new Error('Invalid model provider');
-} 
-
-export async function summarizeTranscript(transcript: string, settings: any) {
-  if (settings.modelProvider === 'openai') {
-    const response = await fetch('https://api.openai.com/v1/engines/davinci-codex/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${settings.apiKey}`
-      },
-      body: JSON.stringify({
-        prompt: `${SUMMARY_PROMPT}
-            Transcript: ${transcript}`,
-        max_tokens: 150,
-        temperature: 0.7,
-      })
-    });
-
-    const data = await response.json();
-    return data.choices[0].text.trim();
-  } else if (settings.modelProvider === 'ollama') {
-    const response = await fetch(`${settings.ollamaHost}/api/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: settings.modelName,
-        prompt: `${SUMMARY_PROMPT}
-            Transcript: ${transcript}`,
-      }),
-    });
-
-    const data = await response.json();
-    return data.summary;
+  if (!response.ok) {
+    throw new Error('Failed to store call analytics');
   }
 
-  throw new Error('Invalid model provider');
-}   
+  return response.json();
+}
 
+export const fetchCallMetrics = async () => {
+  try {
+    const token = handleTokenExpiration();
+    const response = await fetch(`${SERVER_URL}/metrics`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
 
+    if (!response.ok) {
+      throw new Error('Failed to fetch call metrics');
+    }
 
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching call metrics:', error);
+  }
+};
 
-// async function run() {
-//     const SAMPLE_RATE = 16000;
-//     const client = new AssemblyAI({
-//     apiKey: 'YOUR_API_KEY'
-//   });
+export async function fetchCallMetricById(id: string): Promise<CallMetric | null> {
+  try {
+    const token = handleTokenExpiration();
+    const response = await fetch(`${SERVER_URL}/metrics/?id=${id}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
 
-//   const transcriber = client.realtime.transcriber({
-//     sampleRate: SAMPLE_RATE
-//   });
+    if (!response.ok) {
+      throw new Error('Failed to fetch call metric');
+    }
 
-//   transcriber.on('open', ({ sessionId }) => {
-//     console.log(`Session opened with ID: ${sessionId}`);
-//   });
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching call metric:', error);
+    throw error;
+  }
+}
 
-//   transcriber.on('error', (error) => {
-//     console.error('Error:', error);
-//   });
+export async function deleteCallMetric(id: string) {
+  const token = handleTokenExpiration();
 
-//   transcriber.on('close', (code, reason) => {
-//     console.log('Session closed:', code, reason);
-//   });
+  const response = await fetch(`${SERVER_URL}/metrics/${id}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
 
-//   transcriber.on('transcript', (transcript) => {
-//     if (!transcript.text) return;
+  if (response.status === 401) {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+    throw new Error('Unauthorized: Token has been cleared and user logged out');
+  }
 
-//     if (transcript.message_type === 'PartialTranscript') {
-//       console.log('Partial:', transcript.text);
-//     } else {
-//       console.log('Final:', transcript.text);
-//     }
-//   });
+  if (!response.ok) {
+    throw new Error('Failed to delete call metric');
+  }
 
-//   console.log('Connecting to real-time transcript service');
-//   await transcriber.connect();
-
-//   console.log('Starting recording');
-//   // @ts-ignore
-//   const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-//   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-//   const source = audioContext.createMediaStreamSource(stream);
-
-//   const processor = audioContext.createScriptProcessor(4096, 1, 1);
-//   processor.onaudioprocess = (event) => {
-//     const inputData = event.inputBuffer.getChannelData(0);
-//     const int16Data = new Int16Array(inputData.length);
-//     for (let i = 0; i < inputData.length; i++) {
-//       int16Data[i] = Math.min(1, inputData[i]) * 32767;
-//     }
-//     transcriber.send(int16Data);
-//   };
-
-//   source.connect(processor);
-
-//   processor.connect(audioContext.destination);
-
-//   // Stop recording and close connection using a button click.
-//   const stopButton = document.createElement('button');
-
-//   stopButton.textContent = 'Stop Recording';
-  
-//   document.body.appendChild(stopButton);
-
-//   stopButton.addEventListener('click', async () => {
-//     console.log('Stopping recording');
-//     stream.getTracks().forEach((track) => track.stop());
-//     processor.disconnect();
-//     source.disconnect();
-//     audioContext.close();
-
-//     console.log('Closing real-time transcript connection');
-//     await transcriber.close();
-
-//     stopButton.remove();
-//   });
-// }
-
-// run().catch(console.error);
-
+  return response.json();
+}

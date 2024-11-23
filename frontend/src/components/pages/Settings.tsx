@@ -1,19 +1,18 @@
 "use client";
 
-import * as React from "react";
 import { useState, useEffect } from "react";
-import { Button } from "./ui/button";
-import { Card } from "./ui/card";
-import { Input } from "./ui/input";
+import { Button } from "../ui/button";
+import { Card } from "../ui/card";
+import { Input } from "../ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "./ui/select";
-import { Save, LogOut, User } from "lucide-react";
-import { toast } from "./ui/toast";
+} from "../ui/select";
+import { Save, LogOut, User, Info } from "lucide-react";
+import { toast } from "../ui/toast";
 
 interface Settings {
   apiKey: string;
@@ -34,7 +33,6 @@ export function SettingsPage() {
 
   const [username, setUsername] = useState<string>("");
 
-  // Load settings on component mount
   useEffect(() => {
     const savedSettings = localStorage.getItem("callAnalysisSettings");
     if (savedSettings) {
@@ -79,16 +77,14 @@ export function SettingsPage() {
     localStorage.setItem("callAnalysisSettings", JSON.stringify(settings));
     toast({
       title: "Success",
-      description: "Settings saved successfully",
+      description: "Settings saved successfully. Note: The key will not be stored in the backend, it will only be stored in localStorage.",
     });
   };
 
   const handleLogout = () => {
-    // Clear all stored data
     localStorage.removeItem("callAnalysisSettings");
-    localStorage.removeItem("authToken"); // If you're using auth token
+    localStorage.removeItem("authToken");
     
-    // Redirect to login page
     window.location.href = "/login";
   };
 
@@ -142,9 +138,12 @@ export function SettingsPage() {
                 Assembly AI
               </a>
             </p>
+            <div className="flex items-center text-sm text-gray-500">
+              <Info className="w-4 h-4 mr-1 text-cyan-600" />
+              <span>Note: The key will not be stored in the backend, it will only be stored in localStorage.</span>
+            </div>
           </div>
 
-          {/* Model Provider Selection */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Model Provider</label>
             <Select
@@ -163,7 +162,6 @@ export function SettingsPage() {
             </Select>
           </div>
 
-          {/* OpenAI Settings */}
           {settings.modelProvider === "openai" && (
             <div className="space-y-2">
               <label className="text-sm font-medium">OpenAI API Key</label>
@@ -194,7 +192,6 @@ export function SettingsPage() {
             </div>
           )}
 
-          {/* Ollama Settings */}
           {settings.modelProvider === "ollama" && (
             <div className="space-y-2">
               <label className="text-sm font-medium">Ollama Host URL</label>
