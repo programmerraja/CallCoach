@@ -1,6 +1,6 @@
 import { AssemblyAI } from "assemblyai";
 import { METRICS_PROMPT, SUMMARY_PROMPT } from "./prompt";
-import { CallMetric } from "../components/pages/homePage";
+import { CallMetric } from "../components/pages/Dashboard";
 
 export interface CallAnalytics {
   summary: string;
