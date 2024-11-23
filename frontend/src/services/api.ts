@@ -1,8 +1,5 @@
 import { AssemblyAI } from "assemblyai";
-import {
-  METRICS_PROMPT,
-  SUMMARY_PROMPT,
-} from "./prompt";
+import { METRICS_PROMPT, SUMMARY_PROMPT } from "./prompt";
 import { CallMetric } from "../components/pages/homePage";
 
 export interface CallAnalytics {
@@ -33,7 +30,9 @@ export interface AnalysisResults {
   actionable_insights: string;
 }
 // @ts-ignore
-const SERVER_URL = `${window.location.hostname}/api` || "http://localhost:5000/api";
+const SERVER_URL = !window.location.hostname.includes("localhost")
+  ? `https://${window.location.hostname}/api`
+  : "http://localhost:5000/api";
 
 function getSettings() {
   return JSON.parse(localStorage.getItem("callAnalysisSettings") || "{}");
@@ -103,7 +102,7 @@ export async function transcribeAudio(audioUrl: string | File) {
 }
 
 export async function analyzeTranscript(
-  transcript: string,
+  transcript: string
 ): Promise<AnalysisResults> {
   // return Promise.resolve({
   //   talk_to_listen_ratio: {
@@ -169,14 +168,25 @@ export async function analyzeTranscript(
     {
       method: "POST",
       headers: {
-        Authorization: settings.modelProvider === "openai" ? `Bearer ${settings.apiKey}` : undefined,
+        Authorization:
+          settings.modelProvider === "openai"
+            ? `Bearer ${settings.apiKey}`
+            : undefined,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model:settings.modelName ,
+        model: settings.modelName,
         prompt: `${METRICS_PROMPT}\nTranscript: ${transcript}`,
         stream: false,
-        functions: settings.modelProvider === "openai" ? [{ name: "generateStructuredResponse", parameters: functionParameters }] : undefined,
+        functions:
+          settings.modelProvider === "openai"
+            ? [
+                {
+                  name: "generateStructuredResponse",
+                  parameters: functionParameters,
+                },
+              ]
+            : undefined,
       }),
     }
   );
@@ -184,8 +194,13 @@ export async function analyzeTranscript(
   const data = await response.json();
   return settings.modelProvider === "openai"
     ? data.choices[0].message.function_call.arguments
-    // ollama model returns a json string
-    : JSON.parse(data.response.replace("```json", "").replace("```", "").replace(/\n/g, ""));
+    : // ollama model returns a json string
+      JSON.parse(
+        data.response
+          .replace("```json", "")
+          .replace("```", "")
+          .replace(/\n/g, "")
+      );
 }
 
 export async function summarizeTranscript(transcript: string) {
@@ -198,11 +213,14 @@ export async function summarizeTranscript(transcript: string) {
     {
       method: "POST",
       headers: {
-        Authorization: settings.modelProvider === "openai" ? `Bearer ${settings.apiKey}` : undefined,
+        Authorization:
+          settings.modelProvider === "openai"
+            ? `Bearer ${settings.apiKey}`
+            : undefined,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model:settings.modelName ,
+        model: settings.modelName,
         prompt: `${SUMMARY_PROMPT}\nTranscript: ${transcript}`,
         max_tokens: settings.modelProvider === "openai" ? 150 : undefined,
         temperature: settings.modelProvider === "openai" ? 0.7 : undefined,
@@ -212,7 +230,9 @@ export async function summarizeTranscript(transcript: string) {
   );
 
   const data = await response.json();
-  return settings.modelProvider === "openai" ? data.choices[0].text.trim() : data.response;
+  return settings.modelProvider === "openai"
+    ? data.choices[0].text.trim()
+    : data.response;
 }
 
 export async function getPersonaResponse(prompt: string): Promise<string> {
@@ -225,24 +245,32 @@ export async function getPersonaResponse(prompt: string): Promise<string> {
     {
       method: "POST",
       headers: {
-        Authorization: settings.modelProvider === "openai" ? `Bearer ${settings.apiKey}` : undefined,
+        Authorization:
+          settings.modelProvider === "openai"
+            ? `Bearer ${settings.apiKey}`
+            : undefined,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model:settings.modelName ,
+        model: settings.modelName,
         prompt,
-        messages: settings.modelProvider === "openai" ? [{ role: "user", content: prompt }] : undefined,
+        messages:
+          settings.modelProvider === "openai"
+            ? [{ role: "user", content: prompt }]
+            : undefined,
         stream: false,
       }),
     }
   );
 
   const data = await response.json();
-  return settings.modelProvider === "openai" ? data.choices[0].message.function_call.arguments : data.response;
+  return settings.modelProvider === "openai"
+    ? data.choices[0].message.function_call.arguments
+    : data.response;
 }
 
 function isTokenExpired(token: string): boolean {
-  const payload = JSON.parse(atob(token.split('.')[1]));
+  const payload = JSON.parse(atob(token.split(".")[1]));
   return payload.exp * 1000 < Date.now();
 }
 
@@ -251,10 +279,10 @@ export async function storeCallAnalytics(data: CallAnalytics) {
   const token = handleTokenExpiration();
 
   const response = await fetch(`${SERVER_URL}/metrics`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ summary, analysis, transcript, audioUrl }),
   });
@@ -262,11 +290,11 @@ export async function storeCallAnalytics(data: CallAnalytics) {
   if (response.status === 401) {
     localStorage.removeItem("token");
     window.location.href = "/login";
-    throw new Error('Unauthorized: Token has been cleared and user logged out');
+    throw new Error("Unauthorized: Token has been cleared and user logged out");
   }
 
   if (!response.ok) {
-    throw new Error('Failed to store call analytics');
+    throw new Error("Failed to store call analytics");
   }
 
   return response.json();
@@ -276,33 +304,35 @@ export const fetchCallMetrics = async () => {
   try {
     const token = handleTokenExpiration();
     const response = await fetch(`${SERVER_URL}/metrics`, {
-      headers: { 'Authorization': `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch call metrics');
+      throw new Error("Failed to fetch call metrics");
     }
 
     return await response.json();
   } catch (error) {
-    console.error('Error fetching call metrics:', error);
+    console.error("Error fetching call metrics:", error);
   }
 };
 
-export async function fetchCallMetricById(id: string): Promise<CallMetric | null> {
+export async function fetchCallMetricById(
+  id: string
+): Promise<CallMetric | null> {
   try {
     const token = handleTokenExpiration();
     const response = await fetch(`${SERVER_URL}/metrics/?id=${id}`, {
-      headers: { 'Authorization': `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     if (!response.ok) {
-      throw new Error('Failed to fetch call metric');
+      throw new Error("Failed to fetch call metric");
     }
 
     return await response.json();
   } catch (error) {
-    console.error('Error fetching call metric:', error);
+    console.error("Error fetching call metric:", error);
     throw error;
   }
 }
@@ -311,18 +341,18 @@ export async function deleteCallMetric(id: string) {
   const token = handleTokenExpiration();
 
   const response = await fetch(`${SERVER_URL}/metrics/${id}`, {
-    method: 'DELETE',
-    headers: { 'Authorization': `Bearer ${token}` },
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
   });
 
   if (response.status === 401) {
     localStorage.removeItem("token");
     window.location.href = "/login";
-    throw new Error('Unauthorized: Token has been cleared and user logged out');
+    throw new Error("Unauthorized: Token has been cleared and user logged out");
   }
 
   if (!response.ok) {
-    throw new Error('Failed to delete call metric');
+    throw new Error("Failed to delete call metric");
   }
 
   return response.json();

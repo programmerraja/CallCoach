@@ -54,7 +54,7 @@ router.post(
   passport.authenticate("local", { session: false }),
   (req, res) => {
     const token = jwt.sign(
-      { id: req.user._id, username: user.email },
+      { id: req.user._id, username: req.user.email },
       process.env.JWT_SECRET,
       {
         expiresIn: "3d",

@@ -1,6 +1,7 @@
-import axios from 'axios';
+import axios from "axios";
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL =
+  `${window.location.hostname}/api` || "http://localhost:5000/api";
 
 export interface RegisterData {
   email: string;
@@ -17,7 +18,7 @@ export const authService = {
   async register(data: RegisterData) {
     const response = await axios.post(`${API_URL}/auth/register`, data);
     if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
+      localStorage.setItem("token", response.data.token);
     }
     return response.data;
   },
@@ -25,16 +26,16 @@ export const authService = {
   async login(data: LoginData) {
     const response = await axios.post(`${API_URL}/auth/login`, data);
     if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
+      localStorage.setItem("token", response.data.token);
     }
     return response.data;
   },
 
   logout() {
-    localStorage.removeItem('token');
+    localStorage.removeItem("token");
   },
 
   getToken() {
-    return localStorage.getItem('token');
-  }
-}; 
+    return localStorage.getItem("token");
+  },
+};

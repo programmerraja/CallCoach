@@ -1,5 +1,5 @@
 import { Button } from "../ui/button";
-import { Menu, User, LogOut, Trash2 } from "lucide-react";
+import { Menu, User, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Card } from "../ui/card";
 import { AnalysisResults } from "../../services/api";
@@ -150,7 +150,7 @@ export function HomePage() {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {talkRatioData.map((entry, index) => (
+                  {talkRatioData.map((_, index) => (
                     <Cell
                       key={`cell-${index}`}
                       fill={COLORS[index % COLORS.length]}
