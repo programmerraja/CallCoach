@@ -35,6 +35,7 @@ export default function ColdCallPractice() {
   const startCall = () => {
     if (selectedPersona) {
       setIsCallActive(true);
+      setLoading(false)
       setSummary(null);
       setConversation([]);
       setRecording(false);
@@ -72,11 +73,11 @@ export default function ColdCallPractice() {
           type: "audio/wav",
         });
 
-        const transcript = await transcribeAudio(audioBlob as unknown as File);
-
         const username = localStorage.getItem("username");
+        const transcript = await transcribeAudio(audioBlob as unknown as File,username);
 
-        const newConversation = [...conversation, `${username}: ${transcript}`];
+
+        const newConversation = [...conversation, `${transcript}`];
         setConversation(newConversation);
         const prompt = PERSONA_PROMPT(selectedPersona, newConversation);
         const response = await getPersonaResponse(prompt);

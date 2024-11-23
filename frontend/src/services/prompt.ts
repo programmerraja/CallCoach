@@ -107,8 +107,10 @@ Focus on tone, language, and style that fits the selected persona.
 Use natural dialogue and allow the conversation to progress naturally based on the persona's behavior and reactions.
 
 
-Conversation:
+so far Conversation:
 ${conversation.join("\n")}
+
+just return the prospect reply for the above message
 `;
 
 

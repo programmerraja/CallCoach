@@ -68,20 +68,21 @@ export function CallMetrics({
       resetState();
       return;
     }
-
-    fetchCallMetricById(id)
-      .then((data) => {
-        if (data) {
-          setAnalysisResults(data[0].analysis);
-          setSummary(data[0].summary);
-          setTranscript(data[0].transcript);
-        } else {
-          showToast("Error", "Call metric not found");
-        }
-      })
-      .catch((error) => {
-        showToast("Error", error.message);
-      });
+    if (id) {
+      fetchCallMetricById(id)
+        .then((data) => {
+          if (data) {
+            setAnalysisResults(data[0].analysis);
+            setSummary(data[0].summary);
+            setTranscript(data[0].transcript);
+          } else {
+            showToast("Error", "Call metric not found");
+          }
+        })
+        .catch((error) => {
+          showToast("Error", error.message);
+        });
+    }
   }, [id, pTranscript]);
 
   const resetState = () => {
@@ -278,7 +279,6 @@ export function CallMetrics({
   };
 
   const renderQuestionsAsked = () => {
-    console.log(analysisResults?.questions_asked);
     if (!analysisResults?.questions_asked) return null;
 
     return (
@@ -319,7 +319,7 @@ export function CallMetrics({
   };
 
   const renderFillerWords = () => {
-    if (!analysisResults?.filler_words) return null;
+    if (!analysisResults?.filler_words || analysisResults?.filler_words?.length === 0) return null;
 
     return (
       <Card className="p-4">

@@ -2,6 +2,11 @@ import { AssemblyAI } from "assemblyai";
 import { METRICS_PROMPT, SUMMARY_PROMPT } from "./prompt";
 import { CallMetric } from "../components/pages/Dashboard";
 import { authService } from "./authService";
+import { OpenAI } from "openai";
+import {
+  FunctionDefinition,
+  FunctionParameters,
+} from "openai/resources/index.mjs";
 
 export interface CallAnalytics {
   summary: string;
@@ -50,7 +55,7 @@ function getClient(settings: any) {
 }
 
 function handleTokenExpiration() {
-  const token =  authService.getToken();
+  const token = authService.getToken();
   if (!token || isTokenExpired(token)) {
     authService.logout();
     window.location.href = "/login";
@@ -60,16 +65,17 @@ function handleTokenExpiration() {
 }
 
 export async function uploadAudio(file: File) {
+  // return "";
   const settings = getSettings();
   checkAssemblyAIKey(settings);
 
   const formData = new FormData();
   formData.append("audio", file);
   const client = getClient(settings);
-  return await client.files.upload(formData);
+  return await client.files.upload(formData as any);
 }
 
-export async function transcribeAudio(audioUrl: string | File) {
+export async function transcribeAudio(audioUrl: string | File, name: string) {
   const settings = getSettings();
   checkAssemblyAIKey(settings);
 
@@ -90,7 +96,7 @@ export async function transcribeAudio(audioUrl: string | File) {
 
     if (pollResponse.status === "completed") {
       return pollResponse.utterances
-        .map((utterance) => `${utterance.speaker}: ${utterance.text}`)
+        .map((utterance) => `${name || utterance.speaker}: ${utterance.text}`)
         .join("\n");
     }
 
@@ -105,169 +111,162 @@ export async function transcribeAudio(audioUrl: string | File) {
 export async function analyzeTranscript(
   transcript: string
 ): Promise<AnalysisResults> {
-  // return Promise.resolve({
-  //   talk_to_listen_ratio: {
-  //     sales_rep: 0.5,
-  //     customer: 0.5,
-  //   },
-  //   objection_count: 0,
-  //   competitor_mentions: {},
-  //   sentiment: {
-  //     overall_sentiment: "neutral",
-  //     sales_rep_sentiment: "neutral",
-  //     customer_sentiment: "neutral",
-  //   },
-  //   filler_words: [],
-  //   longest_monologue_duration: 0,
-  //   questions_asked: {
-  //     sales_rep: [],
-  //     customer: [],
-  //   },
-  //   actionable_insights: "",
-  // });
   const settings = getSettings();
-  const functionParameters = {
-    type: "object",
-    properties: {
-      duration: { type: "string" },
-      speakers: { type: "array", items: { type: "string" } },
-      sentiment: { type: "string" },
-      keywords: { type: "array", items: { type: "string" } },
-      clarity: { type: "string" },
-      talkToListenRatio: {
-        type: "object",
-        properties: {
-          salesRep: { type: "number" },
-          customer: { type: "number" },
+  const functionParameters: FunctionDefinition = {
+    name: "callAnalysis",
+    parameters: {
+      type: "object",
+      properties: {
+        talk_to_listen_ratio: {
+          type: "object",
+          properties: {
+            sales_rep: { type: "number" },
+            customer: { type: "number" },
+          },
         },
-      },
-      objectionCount: { type: "number" },
-      competitorMentions: {
-        type: "object",
-        additionalProperties: { type: "number" },
-      },
-      overallSentiment: { type: "string" },
-      salesRepSentiment: { type: "string" },
-      customerSentiment: { type: "string" },
-      fillerWordCount: { type: "number" },
-      longestMonologueDuration: { type: "number" },
-      questionsAsked: {
-        type: "object",
-        properties: {
-          salesRep: { type: "number" },
-          customer: { type: "number" },
+        objection_count: { type: "number" },
+        competitor_mentions: {
+          type: "object",
+          additionalProperties: { type: "number" },
         },
+        sentiment: {
+          type: "object",
+          properties: {
+            overall_sentiment: { type: "string" },
+            sales_rep_sentiment: { type: "string" },
+            customer_sentiment: { type: "string" },
+          },
+        },
+        filler_words: { type: "array", items: { type: "string" } },
+        longest_monologue_duration: { type: "number" },
+        questions_asked: {
+          type: "object",
+          properties: {
+            sales_rep: { type: "array", items: { type: "string" } },
+            customer: { type: "array", items: { type: "string" } },
+          },
+        },
+        actionable_insights: { type: "string" },
       },
     },
-    required: ["duration", "speakers", "sentiment", "keywords", "clarity"],
+    description: "Analyze the transcript of a call",
   };
 
-  const response = await fetch(
-    settings.modelProvider === "openai"
-      ? "https://api.openai.com/v1/chat/completions"
-      : `${settings.ollamaHost}/api/generate`,
-    {
+  if (settings.modelProvider === "openai") {
+    const openai = new OpenAI({
+      apiKey: settings.apiKey,
+      dangerouslyAllowBrowser: true,
+    });
+
+    const response = await openai.chat.completions.create({
+      model: settings.modelName,
+      messages: [
+        {
+          role: "system",
+          content: `${METRICS_PROMPT}\nTranscript: ${transcript}`,
+        },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: functionParameters,
+        },
+      ],
+    });
+
+    return JSON.parse(
+      response.choices[0].message?.tool_calls?.[0]?.function.arguments || "{}"
+    );
+  } else {
+    const response = await fetch(`${settings.ollamaHost}/api/generate`, {
       method: "POST",
       headers: {
-        Authorization:
-          settings.modelProvider === "openai"
-            ? `Bearer ${settings.apiKey}`
-            : undefined,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: settings.modelName,
-        prompt: `${METRICS_PROMPT}\nTranscript: ${transcript}`,
+        messages: `${METRICS_PROMPT}\nTranscript: ${transcript}`,
         stream: false,
-        functions:
-          settings.modelProvider === "openai"
-            ? [
-                {
-                  name: "generateStructuredResponse",
-                  parameters: functionParameters,
-                },
-              ]
-            : undefined,
       }),
-    }
-  );
+    });
 
-  const data = await response.json();
-  return settings.modelProvider === "openai"
-    ? data.choices[0].message.function_call.arguments
-    : // ollama model returns a json string
-      JSON.parse(
-        data.response
-          .replace("```json", "")
-          .replace("```", "")
-          .replace(/\n/g, "")
-      );
+    const data = await response.json();
+    return JSON.parse(
+      data.response.replace("```json", "").replace("```", "").replace(/\n/g, "")
+    );
+  }
 }
 
 export async function summarizeTranscript(transcript: string) {
   // return Promise.resolve("This is a summary of the transcript");
   const settings = getSettings();
-  const response = await fetch(
-    settings.modelProvider === "openai"
-      ? "https://api.openai.com/v1/engines/davinci-codex/completions"
-      : `${settings.ollamaHost}/api/generate`,
-    {
+
+  if (settings.modelProvider === "openai") {
+    const openai = new OpenAI({
+      apiKey: settings.apiKey,
+      dangerouslyAllowBrowser: true,
+    });
+
+    const response = await openai.chat.completions.create({
+      model: settings.modelName,
+      messages: [
+        {
+          role: "user",
+          content: `${SUMMARY_PROMPT}\nTranscript: ${transcript}`,
+        },
+      ],
+      temperature: 0.7,
+    });
+
+    return response.choices[0].message?.content?.trim();
+  } else {
+    const response = await fetch(`${settings.ollamaHost}/api/generate`, {
       method: "POST",
       headers: {
-        Authorization:
-          settings.modelProvider === "openai"
-            ? `Bearer ${settings.apiKey}`
-            : undefined,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: settings.modelName,
-        prompt: `${SUMMARY_PROMPT}\nTranscript: ${transcript}`,
-        max_tokens: settings.modelProvider === "openai" ? 150 : undefined,
-        temperature: settings.modelProvider === "openai" ? 0.7 : undefined,
+        messages: `${SUMMARY_PROMPT}\nTranscript: ${transcript}`,
         stream: false,
       }),
-    }
-  );
+    });
 
-  const data = await response.json();
-  return settings.modelProvider === "openai"
-    ? data.choices[0].text.trim()
-    : data.response;
+    const data = await response.json();
+    return data.response;
+  }
 }
 
 export async function getPersonaResponse(prompt: string): Promise<string> {
   const settings = getSettings();
+  if (settings.modelProvider === "openai") {
+    const openai = new OpenAI({
+      apiKey: settings.apiKey,
+      dangerouslyAllowBrowser: true,
+    });
 
-  const response = await fetch(
-    settings.modelProvider === "openai"
-      ? "https://api.openai.com/v1/chat/completions"
-      : `${settings.ollamaHost}/api/generate`,
-    {
+    const response = await openai.chat.completions.create({
+      model: settings.modelName,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    return response.choices[0].message?.content?.trim();
+  } else {
+    const response = await fetch(`${settings.ollamaHost}/api/generate`, {
       method: "POST",
       headers: {
-        Authorization:
-          settings.modelProvider === "openai"
-            ? `Bearer ${settings.apiKey}`
-            : undefined,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: settings.modelName,
         prompt,
-        messages:
-          settings.modelProvider === "openai"
-            ? [{ role: "user", content: prompt }]
-            : undefined,
         stream: false,
       }),
-    }
-  );
+    });
 
-  const data = await response.json();
-  return settings.modelProvider === "openai"
-    ? data.choices[0].message.function_call.arguments
-    : data.response;
+    const data = await response.json();
+    return data.response;
+  }
 }
 
 function isTokenExpired(token: string): boolean {

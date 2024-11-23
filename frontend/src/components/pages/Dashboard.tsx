@@ -223,7 +223,7 @@ export function Dashboard() {
 
       <main className="flex-1 p-6 text-white">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl font-bold mb-6 text-white">Recent Call Analysis</h1>
+          <h1 className="text-2xl font-bold mb-6">Recent Call Analysis</h1>
 
           {loading ? (
             <div className="text-center text-gray-500">Loading...</div>
