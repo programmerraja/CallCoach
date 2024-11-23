@@ -1,7 +1,8 @@
 import axios from "axios";
 
-const API_URL =
-  `${window.location.hostname}/api` || "http://localhost:5000/api";
+const SERVER_URL = !window.location.hostname.includes("localhost")
+  ? `https://${window.location.hostname}/api`
+  : "http://localhost:5000/api";
 
 export interface RegisterData {
   email: string;
@@ -16,7 +17,7 @@ export interface LoginData {
 
 export const authService = {
   async register(data: RegisterData) {
-    const response = await axios.post(`${API_URL}/auth/register`, data);
+    const response = await axios.post(`${SERVER_URL}/auth/register`, data);
     if (response.data.token) {
       localStorage.setItem("token", response.data.token);
     }
@@ -24,7 +25,7 @@ export const authService = {
   },
 
   async login(data: LoginData) {
-    const response = await axios.post(`${API_URL}/auth/login`, data);
+    const response = await axios.post(`${SERVER_URL}/auth/login`, data);
     if (response.data.token) {
       localStorage.setItem("token", response.data.token);
     }
