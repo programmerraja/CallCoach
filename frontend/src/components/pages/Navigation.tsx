@@ -33,8 +33,9 @@ export function Navigation() {
       <nav className={`
         ${isMobileMenuOpen ? 'flex' : 'hidden'} 
         md:flex flex-col gap-2 p-4 
-        bg-gray-100 
+        bg-[#05020e] 
         md:min-h-screen md:w-64
+        text-white
         absolute md:relative
         top-[64px] md:top-0
         left-0 right-0

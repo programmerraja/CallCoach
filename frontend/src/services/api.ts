@@ -1,6 +1,7 @@
 import { AssemblyAI } from "assemblyai";
 import { METRICS_PROMPT, SUMMARY_PROMPT } from "./prompt";
 import { CallMetric } from "../components/pages/Dashboard";
+import { authService } from "./authService";
 
 export interface CallAnalytics {
   summary: string;
@@ -49,9 +50,9 @@ function getClient(settings: any) {
 }
 
 function handleTokenExpiration() {
-  const token = localStorage.getItem("token");
+  const token =  authService.getToken();
   if (!token || isTokenExpired(token)) {
-    localStorage.removeItem("token");
+    authService.logout();
     window.location.href = "/login";
     throw new Error("JWT token not found or expired");
   }

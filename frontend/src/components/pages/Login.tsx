@@ -28,7 +28,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-500 to-purple-600">
+    <div className="min-h-screen flex items-center justify-center bg-[#05020e]">
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-lg transform transition duration-500 hover:scale-105">
         <h2 className="text-4xl font-extrabold text-center text-gray-800">
           Welcome Back
@@ -75,7 +75,7 @@ const Login = () => {
           </div>
           <button
             type="submit"
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-green-400 to-blue-500 hover:from-green-500 hover:to-blue-600 transition duration-300 ease-in-out transform hover:scale-105"
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#05020e] transition duration-300 ease-in-out transform hover:scale-105"
           >
             Sign In
           </button>

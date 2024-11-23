@@ -74,7 +74,9 @@ export default function ColdCallPractice() {
 
         const transcript = await transcribeAudio(audioBlob as unknown as File);
 
-        const newConversation = [...conversation, `You: ${transcript}`];
+        const username = localStorage.getItem("username");
+
+        const newConversation = [...conversation, `${username}: ${transcript}`];
         setConversation(newConversation);
         const prompt = PERSONA_PROMPT(selectedPersona, newConversation);
         const response = await getPersonaResponse(prompt);

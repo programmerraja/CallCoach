@@ -1,4 +1,6 @@
 import axios from "axios";
+import { jwtDecode } from "jwt-decode";
+
 
 const SERVER_URL = !window.location.hostname.includes("localhost")
   ? `https://${window.location.hostname}/api`
@@ -28,10 +30,18 @@ export const authService = {
     const response = await axios.post(`${SERVER_URL}/auth/login`, data);
     if (response.data.token) {
       localStorage.setItem("token", response.data.token);
+      localStorage.setItem("username", jwtDecode<{ username: string,id: string }>(response.data.token).username);
     }
     return response.data;
   },
 
+  decodeToken() {
+    const token = localStorage.getItem("token");
+    if (token) {
+      return jwtDecode(token);
+    }
+    return null;
+  },
   logout() {
     localStorage.removeItem("token");
   },
@@ -40,3 +50,5 @@ export const authService = {
     return localStorage.getItem("token");
   },
 };
+
+
