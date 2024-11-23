@@ -83,7 +83,7 @@ export function SettingsPage() {
 
   const handleLogout = () => {
     localStorage.removeItem("callAnalysisSettings");
-    localStorage.removeItem("authToken");
+    localStorage.removeItem("token");
     
     window.location.href = "/login";
   };
@@ -97,8 +97,7 @@ export function SettingsPage() {
               <User className="h-6 w-6 text-cyan-600" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">{username || "User"}</h2>
-              <p className="text-sm text-gray-500">Logged in user</p>
+              <h2 className="text-lg font-semibold">{username}</h2>
             </div>
           </div>
           <Button

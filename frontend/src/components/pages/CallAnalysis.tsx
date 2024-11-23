@@ -59,8 +59,6 @@ export function CallMetrics({
 
   const isCalled = useRef(false);
 
-
-
   useEffect(() => {
     if (pTranscript && !isCalled.current && !pSummary && !pAnalysisResults) {
       isCalled.current = true;
@@ -164,6 +162,12 @@ export function CallMetrics({
       setAudioFile(file);
       handleFileUpload(file);
     }
+  };
+
+  const handleDeselectFile = () => {
+    setAudioFile(null);
+    setIsProcessing(false);
+    resetState();
   };
 
   const handleSaveMetrics = async () => {
@@ -372,9 +376,14 @@ export function CallMetrics({
                 />
               )}
               {audioFile && (
-                <p className="text-sm text-gray-500">
-                  Selected file: {audioFile.name}
-                </p>
+                <>
+                  <p className="text-sm text-gray-500">
+                    Selected file: {audioFile.name}
+                  </p>
+                  <Button variant="outline" onClick={handleDeselectFile}>
+                    Stop Processing
+                  </Button>
+                </>
               )}
               {isProcessing && (
                 <div className="flex items-center gap-2">

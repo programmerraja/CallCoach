@@ -21,7 +21,7 @@ const Login = () => {
     e.preventDefault();
     try {
       await authService.login(formData);
-      navigate("/");
+      navigate("/dashboard");
     } catch (err: any) {
       setError(err.response?.data?.message || "Login failed");
     }

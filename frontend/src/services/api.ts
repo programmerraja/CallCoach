@@ -74,7 +74,7 @@ export async function transcribeAudio(audioUrl: string | File) {
   checkAssemblyAIKey(settings);
 
   const client = getClient(settings);
-  const config: any = { speaker_labels: true };
+  const config: any = { speaker_labels: true, speech_model: "best" };
 
   if (typeof audioUrl === "string") {
     config.audio_url = audioUrl;
