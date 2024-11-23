@@ -71,7 +71,7 @@ const HomePage: React.FC = () => {
   return (
     <>
      <div
-        className="fixed h-screen w-screen"
+        className="fixed h-screen w-screen bg-[#05020e]"
         // style={{ background: 'black',  opacity: 0.3 }}
         data-sentry-component="Stars"
         data-sentry-source-file="index.tsx"
