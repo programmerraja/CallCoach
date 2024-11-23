@@ -75,7 +75,7 @@ export async function uploadAudio(file: File) {
   return await client.files.upload(formData as any);
 }
 
-export async function transcribeAudio(audioUrl: string | File, name: string) {
+export async function transcribeAudio(audioUrl: string | File, name?: string) {
   const settings = getSettings();
   checkAssemblyAIKey(settings);
 
