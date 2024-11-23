@@ -3,10 +3,7 @@ import { METRICS_PROMPT, SUMMARY_PROMPT } from "./prompt";
 import { CallMetric } from "../components/pages/Dashboard";
 import { authService } from "./authService";
 import { OpenAI } from "openai";
-import {
-  FunctionDefinition,
-  FunctionParameters,
-} from "openai/resources/index.mjs";
+import { FunctionDefinition } from "openai/resources/index.mjs";
 
 export interface CallAnalytics {
   summary: string;
