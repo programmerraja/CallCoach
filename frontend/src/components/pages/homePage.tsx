@@ -1,243 +1,256 @@
-import { Button } from "../ui/button";
-import { Menu, User, Trash2 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { Card } from "../ui/card";
-import { AnalysisResults } from "../../services/api";
-import { fetchCallMetrics, deleteCallMetric } from "../../services/api";
-import { toast } from "../ui/toast";
-import { useNavigate } from "react-router-dom";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import React, { useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
+// import './HomePage.css';
 
-export interface CallMetric {
-  _id: string;
-  userId: string;
-  summary: string;
-  analysis: Partial<AnalysisResults>;
-  audioUrl: string;
-  createdAt: string;
-  __v: number;
-}
-
-function SentimentIcon({ sentiment }: { sentiment: string }) {
-  const getColor = (sentiment: string) => {
-    switch (sentiment?.toLowerCase()) {
-      case "positive":
-        return "text-green-500";
-      case "negative":
-        return "text-red-500";
-      default:
-        return "text-yellow-500";
-    }
-  };
-
-  return (
-    <span className={`text-lg ${getColor(sentiment)}`} title={sentiment}>
-      {sentiment?.toLowerCase() === "positive"
-        ? "😊"
-        : sentiment?.toLowerCase() === "negative"
-        ? "😟"
-        : "😐"}
-    </span>
-  );
-}
-
-export function HomePage() {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [callMetrics, setCallMetrics] = useState<CallMetric[]>([]);
-  const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+const HomePage: React.FC = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    fetchCallMetrics()
-      .then((metrics) => {
-        if (metrics) {
-          setCallMetrics(metrics);
-        } else {
-          toast({
-            title: "Error",
-            description: "No metrics data received",
-            variant: "destructive",
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const context = canvas.getContext("2d");
+      if (context) {
+        const stars: { x: number; y: number; radius: number; dx: number; dy: number }[] = [];
+
+        const createStars = (numStars: number) => {
+          for (let i = 0; i < numStars; i++) {
+            const x = Math.random() * canvas.width;
+            const y = Math.random() * canvas.height;
+            const radius = Math.random() * 1.5;
+            const dx = (Math.random() - 0.5) * 0.5;
+            const dy = (Math.random() - 0.5) * 0.5;
+            stars.push({ x, y, radius, dx, dy });
+          }
+        };
+
+        const drawStars = () => {
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          stars.forEach((star) => {
+            context.beginPath();
+            context.arc(star.x, star.y, star.radius, 0, Math.PI * 2, false);
+            context.fillStyle = "white";
+            context.fill();
+            context.closePath();
           });
-        }
-        setLoading(false);
-      })
-      .catch((error) => {
-        toast({
-          title: "Error fetching call metrics",
-          description: error.message,
-          variant: "destructive",
-        });
-        console.error("Error fetching call metrics:", error);
-        setLoading(false);
-      });
+        };
+
+        const updateStars = () => {
+          stars.forEach((star) => {
+            star.x += star.dx;
+            star.y += star.dy;
+
+            if (star.x < 0 || star.x > canvas.width) star.dx = -star.dx;
+            if (star.y < 0 || star.y > canvas.height) star.dy = -star.dy;
+          });
+        };
+
+        const animate = () => {
+          drawStars();
+          updateStars();
+          requestAnimationFrame(animate);
+        };
+
+        const resizeCanvas = () => {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+          stars.length = 0;
+          createStars(200);
+        };
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        animate();
+
+        return () => {
+          window.removeEventListener('resize', resizeCanvas);
+        };
+      }
+    }
   }, []);
 
-  const handleDelete = async (e: React.MouseEvent, id: string) => {
-    e.stopPropagation(); // Prevent card click when clicking delete
-    
-    try {
-      await deleteCallMetric(id);
-      setCallMetrics(callMetrics.filter(metric => metric._id !== id));
-      toast({
-        title: "Success",
-        description: "Call recording deleted successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete call recording",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const renderMetricCard = (metric: CallMetric) => {
-    const talkRatioData = [
-      {
-        name: "Sales Rep",
-        value: metric.analysis.talk_to_listen_ratio?.sales_rep || 0,
-      },
-      {
-        name: "Customer",
-        value: 100 - (metric.analysis.talk_to_listen_ratio?.sales_rep || 0),
-      },
-    ];
-
-    const COLORS = ["#0088FE", "#00C49F"];
-
-    return (
-      <Card
-        key={metric._id}
-        className="p-6 bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow duration-300 cursor-pointer relative"
-        onClick={() => navigate(`/dashboard/analysis/${metric._id}`)}
-      >
-        <div className="flex flex-col gap-4">
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-500">
-              {new Date(metric.createdAt).toLocaleDateString()}
-            </div>
-            <SentimentIcon
-              sentiment={
-                metric.analysis.sentiment?.overall_sentiment || "neutral"
-              }
-            />
-          </div>
-
-          {/* <p className="font-medium text-gray-800 line-clamp-2">{metric.summary}</p> */}
-
-          <div className="h-[200px] w-full mb-4">
-            <h1 className="text-lg font-semibold mb-2">Talk to Listen Ratio</h1>
-            {/* <p className="text-sm text-gray-500 mb-2">This chart shows the ratio of talk time to listen time for both the sales rep and the customer.</p> */}
-            <div className="flex justify-center ">
-              <div className="flex items-center mr-4">
-                <div className="w-3 h-3 bg-[#0088FE] mr-2"></div>
-                <span className="text-sm text-gray-600">Sales Rep</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-[#00C49F] mr-2"></div>
-                <span className="text-sm text-gray-600">Customer</span>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={talkRatioData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  fill="#8884d8"
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {talkRatioData.map((_, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={COLORS[index % COLORS.length]}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="mt-4">
-            <h3 className="font-semibold text-gray-700">Key Metrics:</h3>
-            <div className="grid grid-cols-2 gap-4 mt-2">
-              <div
-                className="bg-gray-50 p-3 rounded-lg flex flex-col items-center"
-                title="Number of objections raised by the customer"
-              >
-                <div className="text-sm text-gray-600">Objections</div>
-                <div className="text-xl font-bold">
-                  {metric.analysis.objection_count ?? "N/A"}
-                </div>
-              </div>
-              <div
-                className="bg-gray-50 p-3 rounded-lg flex flex-col items-center"
-                title="Total number of questions asked by both sales rep and customer"
-              >
-                <div className="text-sm text-gray-600">Questions</div>
-                <div className="text-xl font-bold">
-                  {(metric.analysis.questions_asked?.sales_rep?.length || 0) +
-                    (metric.analysis.questions_asked?.customer?.length || 0)}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="text-blue-600 text-sm mt-2 text-center">
-            View detailed analysis →
-          </div>
-        </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute bottom-2 right-2 text-gray-400 hover:text-red-500"
-          onClick={(e) => handleDelete(e, metric._id)}
-        >
-          <Trash2 className="h-5 w-5" />
-        </Button>
-      </Card>
-    );
-  };
-
   return (
-    <div className="flex flex-col md:flex-row min-h-screen w-full overflow-x-hidden bg-gray-100">
-      <header className="md:hidden flex items-center justify-between p-4 border-b w-full bg-white shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white">
-            <User className="h-5 w-5" />
+    <>
+     <div
+        className="fixed h-screen w-screen"
+        // style={{ background: 'black',  opacity: 0.3 }}
+        data-sentry-component="Stars"
+        data-sentry-source-file="index.tsx"
+      >
+        <canvas ref={canvasRef} className="h-full w-full" aria-hidden="true"></canvas>
+      </div>
+    <div className="home-page min-h-screen p-8 w-full bg-[#05020e] text-white"  style={{ background: 'black', zIndex: 1, opacity: 0.8 }}>
+      {/* Hero Section */}
+     
+      <section className="hero p-8 rounded-lg mb-12 w-full bg-[#05020e] text-white">
+        <div className="hero-content text-center text-white">
+          <h1 className="mb-8 bg-[linear-gradient(107.41deg,#FFFFFF_65%,rgba(255,255,255,0.43)_100%)] bg-clip-text text-center font-semibold tracking-[1%] text-transparent laptop:text-left xl:!text-6xl/[72px] text-4xl md:text-5xl text-white">
+            Boost Your Sales Calls with Free AI-Powered Analysis & Practice
+          </h1>
+          <p className="subheadline text-lg mb-6 font-bold text-base md:text-lg text-white">
+            Get started for FREE—just enter your Assembly and OpenAI API keys,
+            and start improving your cold calls with tailored feedback and
+            practice!
+          </p>
+          <div className="cta-buttons flex justify-center space-x-4">
+            <Link
+              to="/register"
+              className="btn btn-secondary text-white py-2 px-4 rounded-lg shadow-md text-sm md:text-base text-white"
+            >
+              Start for Free
+            </Link>
+            
           </div>
-          <h2 className="font-semibold">Sales Analytics AI</h2>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-        >
-          <Menu className="h-6 w-6" />
-        </Button>
-      </header>
-
-      <main className="flex-1 p-6">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl font-bold mb-6">Recent Call Analysis</h1>
-
-          {loading ? (
-            <div className="text-center text-gray-500">Loading...</div>
-          ) : callMetrics.length === 0 ? (
-            <div className="text-center text-gray-500">
-              No call recordings found
-            </div>
-          ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {callMetrics.map(renderMetricCard)}
-            </div>
-          )}
+        <div className="hero-visual mt-8">
+          {/* Add hero animation/image here */}
         </div>
-      </main>
+      </section>
+
+      {/* Features Section */}
+      <section className="features glassmorphism p-8 rounded-lg shadow-lg mb-12 w-full bg-[#05020e] text-white">
+        <h2 className="text-3xl font-semibold text-white text-center mb-8 text-2xl md:text-3xl text-white">
+          Powerful AI Features to Improve Your Sales Calls—For Free!
+        </h2>
+        <div className="feature-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="p-6 transition-all duration-300 flex h-full w-full shrink-0 flex-col items-start gap-6 self-stretch rounded-xl border-none bg-neutral-0 px-4 py-6 shadow-none ring-1 ring-inset ring-neutral-40 bg-neutral-800 shadow-none ring-neutral-600  desktop:w-[324px] text-white">
+            <i className="feature-icon analysis-icon text-green-600 text-3xl mb-4 text-white"></i>
+            <h3 className="text-xl font-semibold mb-2 text-lg md:text-xl text-white">
+              Free Call Analysis
+            </h3>
+            <p className="text-sm md:text-base text-white">
+              Upload your call recordings and get instant feedback on tone,
+              pace, and engagement—completely free.
+            </p>
+          </div>
+          <div className="p-6 transition-all duration-300 flex h-full w-full shrink-0 flex-col items-start gap-6 self-stretch rounded-xl border-none bg-neutral-0 px-4 py-6 shadow-none ring-1 ring-inset ring-neutral-40 bg-neutral-800 shadow-none ring-neutral-600  desktop:w-[324px] text-white">
+            <i className="feature-icon practice-icon text-green-600 text-3xl mb-4 text-white"></i>
+            <h3 className="text-xl font-semibold mb-2 text-lg md:text-xl text-white">
+              Cold Call Practice with AI Personas
+            </h3>
+            <p className="text-sm md:text-base text-white">
+              Select your ideal prospect persona and practice cold calling.
+              Start speaking right away with AI-generated responses.
+            </p>
+          </div>
+          <div className="p-6 transition-all duration-300 flex h-full w-full shrink-0 flex-col items-start gap-6 self-stretch rounded-xl border-none bg-neutral-0 px-4 py-6 shadow-none ring-1 ring-inset ring-neutral-40 bg-neutral-800 shadow-none ring-neutral-600  desktop:w-[324px] text-white">
+            <i className="feature-icon feedback-icon text-green-600 text-3xl mb-4 text-white"></i>
+            <h3 className="text-xl font-semibold mb-2 text-lg md:text-xl text-white">
+              Real-Time Feedback & Progress Tracking
+            </h3>
+            <p className="text-sm md:text-base text-white">
+              Receive actionable insights after each call and track your
+              improvement over time—all without spending a dime.
+            </p>
+          </div>
+          <div className="p-6 transition-all duration-300 flex h-full w-full shrink-0 flex-col items-start gap-6 self-stretch rounded-xl border-none bg-neutral-0 px-4 py-6 shadow-none ring-1 ring-inset ring-neutral-40 bg-neutral-800 shadow-none ring-neutral-600  desktop:w-[324px] text-white">
+            <i className="feature-icon integration-icon text-green-600 text-3xl mb-4 text-white"></i>
+            <h3 className="text-xl font-semibold mb-2 text-lg md:text-xl text-white">
+              Easy Integration with API Keys
+            </h3>
+            <p className="text-sm md:text-base text-white">
+              Simply enter your Assembly and OpenAI API keys to get started
+              instantly with no setup cost.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works Section */}
+      <section className="how-it-works glassmorphism p-8 rounded-lg shadow-lg mb-12 w-full bg-[#05020e] text-white">
+        <h2 className="text-3xl font-semibold text-white text-center mb-8 text-2xl md:text-3xl text-white">
+          Getting Started Is Simple—And FREE
+        </h2>
+        <div className="steps grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 text-white">
+          {[
+            {
+              number: 1,
+              title: "Get Your API Keys",
+              description:
+                "Sign up for Assembly and OpenAI (or use your existing accounts) and grab your API keys.",
+            },
+            {
+              number: 2,
+              title: "Enter API Keys",
+              description:
+                "Simply paste your API keys into the app—no complicated setup required.",
+            },
+            {
+              number: 3,
+              title: "Upload Your Call Recording",
+              description:
+                "Upload your call recording and let our AI instantly analyze it.",
+            },
+            {
+              number: 4,
+              title: "Practice Cold Calls",
+              description:
+                "Choose a prospect persona, start your practice, and get real-time AI feedback.",
+            },
+            {
+              number: 5,
+              title: "Track Your Progress",
+              description:
+                "See your performance improve with detailed reports and suggestions for every call.",
+            },
+          ].map((step) => (
+            <div
+              key={step.number}
+              className="p-6 transition-all duration-300 flex h-full w-full shrink-0 flex-col items-start gap-6 self-stretch rounded-xl border-none bg-neutral-0 px-4 py-6 shadow-none ring-1 ring-inset ring-neutral-40 bg-neutral-800 shadow-none ring-neutral-600  desktop:w-[324px] text-white"
+            >
+              {/* <div className="step-number text-green-600 text-2xl font-bold mb-2 text-white">
+                {step.number}
+              </div> */}
+              <h3 className="text-xl font-semibold mb-2 text-lg md:text-xl text-white">
+                {step.title}
+              </h3>
+              <p className="text-sm md:text-base text-white">
+                {step.description}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="faq glassmorphism p-8 rounded-lg shadow-lg mb-12 w-full bg-[#05020e] text-white">
+        <h2 className="text-3xl font-semibold text-white text-center mb-8 text-2xl md:text-3xl text-white">
+          Frequently Asked Questions
+        </h2>
+        <div className="faq-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 text-white">
+          {[
+            {
+              question: "How do I get my Assembly and OpenAI API keys?",
+              answer:
+                "You can obtain your API keys by signing up at Assembly AI and OpenAI websites. We provide detailed instructions in our setup guide.",
+            },
+            {
+              question:
+                "Is there a limit to how many calls I can upload or practice with?",
+              answer:
+                "No, you can analyze and practice as many calls as you want. You only pay for what you use through your API keys.",
+            },
+            {
+              question: "Can I use the platform for free forever?",
+              answer:
+                "Yes! Our platform is completely free to use. You only need to cover the cost of your API usage through Assembly AI and OpenAI.",
+            },
+          ].map((faq, index) => (
+            <div
+              key={index}
+              className="p-6 transition-all duration-300 flex h-full w-full shrink-0 flex-col items-start gap-6 self-stretch rounded-xl border-none bg-neutral-0 px-4 py-6 shadow-none ring-1 ring-inset ring-neutral-40 bg-neutral-800 shadow-none ring-neutral-600  desktop:w-[324px] text-white"
+            >
+              <h3 className="text-xl font-semibold mb-2 text-lg md:text-xl text-white">
+                {faq.question}
+              </h3>
+              <p className="text-sm md:text-base text-white">{faq.answer}</p>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
+    </>
+
   );
-}
+};
+
+export default HomePage;

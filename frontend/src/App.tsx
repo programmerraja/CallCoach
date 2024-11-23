@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./components/pages/Login";
 import Register from "./components/pages/Register";
 import PrivateRoute from "./components/pages/PrivateRoute";
@@ -8,14 +8,28 @@ import { CallMetrics } from "./components/pages/CallAnalysis";
 import { SettingsPage } from "./components/pages/Settings";
 import ColdCallPractice from "./components/pages/ColdCallPractice";
 import NotFound from "./components/pages/NotFound";
-import { HomePage } from "./components/pages/homePage";
+import { Dashboard } from "./components/pages/Dashboard";
+import HomePage from "./components/pages/homePage";
 
 function App() {
+  const isAuthenticated = () => {
+    // Implement your authentication logic here
+    // For example, check if a token exists in local storage
+    return !!localStorage.getItem("token");
+  };
+
   return (
     <Router>
       <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/" element={<HomePage />} />
+        <Route
+          path="/login"
+          element={isAuthenticated() ? <Navigate to="/dashboard" /> : <Login />}
+        />
+        <Route
+          path="/register"
+          element={isAuthenticated() ? <Navigate to="/dashboard" /> : <Register />}
+        />
 
         <Route
           path="/dashboard"
@@ -25,22 +39,11 @@ function App() {
             </PrivateRoute>
           }
         >
-          <Route index element={<HomePage />} />
+          <Route index element={<Dashboard />} />
           <Route path="analysis" element={<CallMetrics />} />
           <Route path="analysis/:id" element={<CallMetrics />} />
           <Route path="cold-call-practice" element={<ColdCallPractice />} />
           <Route path="settings" element={<SettingsPage />} />
-        </Route>
-
-        <Route
-          path="/"
-          element={
-            <PrivateRoute>
-              <DashboardLayout />
-            </PrivateRoute>
-          }
-        >
-          <Route index element={<HomePage />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />
