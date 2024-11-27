@@ -228,9 +228,20 @@ export function Dashboard() {
           {loading ? (
             <div className="text-center text-gray-500">Loading...</div>
           ) : callMetrics.length === 0 ? (
-            <div className="text-center text-gray-500">
-              No call recordings found
-            </div>
+            <>
+              <div className="text-center text-gray-500">
+                No call recordings found.{" \n"}
+              </div>
+              <div className="flex justify-center items-center m-3">
+                <Button
+                  onClick={() => {
+                    navigate("/dashboard/analysis");
+                  }}
+                >
+                  Start Here
+                </Button>{" "}
+              </div>
+            </>
           ) : (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {callMetrics.map(renderMetricCard)}
